@@ -4,6 +4,8 @@ Fork comments and notes:
 This is a fork from the main project made by Ronald Dehuysser (rdehuyss).
 Thank you so much for creating this great addon.
 
+https://github.com/rdehuyss/homeassistant-custom_components-denkovi
+
 The main change in this fork is the possibility to toggle multiple relays in one command to the Denkovi module.
 I have many light groups and when turning the light on or off, it would happen one relay at a time, with a small delay between each relay.
 As it is possible to change state of multiple relays in one command i have implementet this.
@@ -35,8 +37,6 @@ Quirks:
 If you toggle a relay in a group it can take up to 10 seconds for the group to update state in Home Assistant.
 The same is also the case, if you toggle a group. Here it can take up to 10 seconds before the individual relays update state.
 It is only the visual update in Home Asssistant that is slow, the relays change state immidiatly.
-
-https://github.com/rdehuyss/homeassistant-custom_components-denkovi
 
 # HomeAssistant - Denkovi
 Custom component for - switch platform - for [Denkovi](http://denkovi.com) relay modules in HomeAssistant
