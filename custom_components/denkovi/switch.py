@@ -19,11 +19,13 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_RELAYS = 'relays'
 CONF_INVERT = 'invert'
+CONF_PINS = 'pins'
 
 DEFAULT_NAME = 'Denkovi switch'
 
 PIN_FUNCTION_SCHEMA = vol.Schema({
     vol.Optional(CONF_NAME): cv.string,
+    vol.Optional(CONF_PINS): cv.string,
     vol.Optional(CONF_INVERT, default=False): cv.boolean,
 })
 
@@ -50,7 +52,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     dev = []
     relays = config.get(CONF_RELAYS)
     for relaynum, relay in relays.items():
-        dev.append(DenkoviSwitchRelay(denkoviModule, relay.get(CONF_NAME), relaynum, relay.get(CONF_INVERT)))
+        dev.append(DenkoviSwitchRelay(denkoviModule, relay.get(CONF_NAME), relay.get(CONF_PINS), relay.get(CONF_INVERT)))
 
     add_entities(dev)
 
@@ -61,17 +63,30 @@ class DenkoviModule():
         self._password = password
         self.update()
 
-    def turn_on_or_off(self, relay, payload):
+    def turn_on_or_off(self, pinList, payload):
         try:
-            self._response = requests.get('{}/current_state.json?pw={}&Relay{}={}'.format(self._resource, self._password, relay, payload),
-                                timeout=20)
+            response_str = '{}/current_state.json?pw={}'.format(self._resource, self._password)
+
+            for pin in pinList.split():
+                response_str += '&Relay{}={}'.format(int(pin), payload)
+
+            self._response = requests.get(response_str, timeout=20)
+
         except requests.exceptions.ConnectionError:
             raise DenkoviConnectException('turn_on_or_off - No route to device {}'.format(self._resource))
 
-    def get_state(self, relay):
+    def get_state(self, pinList):
         if self._response.status_code == 200:
             try:
-                return int(self._response.json()['CurrentState']['Output'][int(relay) - 1]['Value'])
+                rc = 0
+
+                for pin in pinList.split():
+                  rc += int(self._response.json()['CurrentState']['Output'][int(pin) - 1]['Value'])
+
+                if rc > 0:
+                    return 1
+                else:
+                    return 0
             except:
                 raise DenkoviException('Unexpected JSONL {}'.format(self._response.content))
         else:
@@ -98,6 +113,7 @@ class DenkoviSwitchBase(SwitchDevice):
         """Initialize the switch."""
         self._denkoviModule = denkoviModule
         self._name = name
+        self._unique_id = name
         self._state = None
         self._available = True
 
@@ -105,6 +121,11 @@ class DenkoviSwitchBase(SwitchDevice):
     def name(self):
         """Return the name of the switch."""
         return self._name
+
+    @property
+    def unique_id(self):
+        """Return the unique id of the switch."""
+        return self._unique_id
 
     @property
     def is_on(self):
@@ -120,10 +141,10 @@ class DenkoviSwitchBase(SwitchDevice):
 class DenkoviSwitchRelay(DenkoviSwitchBase):
     """Representation of an Denkovi switch. Based on digital I/O."""
 
-    def __init__(self, denkoviModule, name, relay, invert):
+    def __init__(self, denkoviModule, name, pinList, invert):
         """Initialize the switch."""
         super().__init__(denkoviModule, name)
-        self._relay = relay
+        self._pinList = pinList
         self._invert = invert
         self.update()
 
@@ -142,9 +163,9 @@ class DenkoviSwitchRelay(DenkoviSwitchBase):
     def turn_on_or_off(self, payload):
         """Turn the device on or off."""
         try:
-            self._denkoviModule.turn_on_or_off(self._relay, payload)
+            self._denkoviModule.turn_on_or_off(self._pinList, payload)
             status_value = int(self._invert)
-            self._state = self._denkoviModule.get_state(self._relay) != status_value
+            self._state = self._denkoviModule.get_state(self._pinList) != status_value
             self._available = True
         except DenkoviException as e:
             _LOGGER.error("Error turning on or off: %s", str(e))
@@ -155,12 +176,12 @@ class DenkoviSwitchRelay(DenkoviSwitchBase):
         try:
             self._denkoviModule.update()
             status_value = int(self._invert)
-            self._state = self._denkoviModule.get_state(self._relay) != status_value
+            self._state = self._denkoviModule.get_state(self._pinList) != status_value
             self._available = True
         except DenkoviException:
             _LOGGER.error("Error updating state for relay %s, %s", str(self._relay), str(e))
             self._available = False
-    
+
 class DenkoviException(Exception):
     pass
 
